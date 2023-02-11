@@ -1,7 +1,7 @@
 import numpy as np
 
 from ortools.sat.python import cp_model
-from typing import List
+from typing import List, Dict
 
 
 FLOAT_APPROX_PRECISION = 100
@@ -221,25 +221,57 @@ def create_polynom_decimal(
     return polynom_var
 
 
-def lookup_table_exp_of_x(
+def lookup_value_in_dict(
+    model: cp_model.CpModel,
+    key_var: cp_model.IntVar,
+    mapping: Dict[int, int],
+    mapping_name: str = "mapping",
+):
+    """Creates a new variable equals to mapping[key_var]
+    If the value is absent from the mapping, the value_var takes the value 0.
+    """
+    value_var = model.NewIntVar(
+        min(mapping.values()), max(mapping.values()), f"{mapping_name}_{key_var.Name()}"
+    )
+    for mapping_key, mapping_value in mapping.items():
+        key_var_is_equal_to = create_boolean_is_equal_to(model, key_var, mapping_key)
+        model.Add(value_var == mapping_value).OnlyEnforceIf(key_var_is_equal_to)
+
+    return value_var
+
+
+# TODO : Make this work with variable bounds
+
+
+def exp_of_x(
     model: cp_model.CpModel,
     var: cp_model.IntVar,
     float_precision_var=FLOAT_APPROX_PRECISION,
-    float_precision_exp=FLOAT_APPROX_PRECISION,
+    float_precision_image=FLOAT_APPROX_PRECISION,
 ):
     lb = var.Proto().domain[0]
     ub = var.Proto().domain[1]
     x_to_exp_x = {
-        x: round(np.exp(x / float_precision_var) * float_precision_exp)
-        for x in np.arange(lb, ub + 1)
+        x: round(exp(x / float_precision_var) * float_precision_image)
+        for x in range(lb, ub + 1)
     }
-    exp_of_var = model.NewIntVar(
-        min(x_to_exp_x.values()), max(x_to_exp_x.values()), f"exp_{var.Name()}"
-    )
-
-    # This is how we implement a kind of lookup table
-    for x_value, exp_value in x_to_exp_x.items():
-        var_is_equal_to_x = create_boolean_is_equal_to(model, var, x_value)
-        model.Add(exp_of_var == exp_value).OnlyEnforceIf(var_is_equal_to_x)
-
+    exp_of_var = lookup_value_in_dict(model, var, x_to_exp_x, mapping_name="exp")
     return exp_of_var
+
+
+def log_of_x(
+    model: cp_model.CpModel,
+    var: cp_model.IntVar,
+    float_precision_var=FLOAT_APPROX_PRECISION,
+    float_precision_image=FLOAT_APPROX_PRECISION,
+):
+    # Log is only defined for x > 0
+    lb = max(var.Proto().domain[0], 1)
+    ub = max(var.Proto().domain[1], 1)
+    assert lb <= ub
+    x_to_log_x = {
+        x: round(log(x / float_precision_var) * float_precision_image)
+        for x in range(lb, ub + 1)
+    }
+    log_of_var = lookup_value_in_dict(model, var, x_to_log_x, mapping_name="log")
+    return log_of_var
