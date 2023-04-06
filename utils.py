@@ -7,29 +7,16 @@ from typing import List, Dict
 FLOAT_APPROX_PRECISION = 100
 
 
-def create_boolean_is_positive(
-    model: cp_model.CpModel, var: cp_model.IntVar, big_m=1000
-):
+def create_boolean_is_positive(model: cp_model.CpModel, var: cp_model.IntVar):
     """Create a bool variable such that
     If var >= 0 then bool = 1
     If var  < 0 then bool = 0
-
-    Big M should be larger than x largest absolute value
     """
-
     boolean_var = model.NewBoolVar(name=var.Name() + "_is_positive")
 
     # Bool are casted to 0 if False and 1 if True, so you can do some operations with them
-
-    # If var > 0, then this is true only if bool = 1
-    # If var <= 0, then this is always true
-    model.Add(big_m * boolean_var >= var)
-    # If var > 0, then this is always true
-    # If var <= 0, then this is true only if bool = 0
-    model.Add(big_m * (boolean_var - 1) <= var)
-
-    # To handle the case var == 0, we specifiy that we want boolean_var to be = 1 this way
-    model.Add(boolean_var > var).OnlyEnforceIf(boolean_var.Not())
+    model.Add(var >= 0).OnlyEnforceIf(boolean_var)
+    model.Add(var < 0).OnlyEnforceIf(boolean_var.Not())
 
     return boolean_var
 
@@ -42,7 +29,7 @@ def create_boolean_is_equal_to(
     Else then bool = 0
     """
     boolean_var = model.NewBoolVar(name=f"{var.Name()}_is_equal_to_{value}")
-    model.Add(value * boolean_var == var).OnlyEnforceIf(boolean_var)
+    model.Add(value == var).OnlyEnforceIf(boolean_var)
     model.Add(value != var).OnlyEnforceIf(boolean_var.Not())
 
     return boolean_var
